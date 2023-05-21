@@ -1,5 +1,4 @@
 use std::{
-    eprintln,
     sync::{mpsc, Arc, Mutex},
     thread,
 };
@@ -8,6 +7,8 @@ pub struct ThreadPool {
     workers: Vec<Worker>,
     sender: mpsc::Sender<Job>,
 }
+
+type Job = Box<dyn FnOnce() + Send + 'static>;
 
 impl ThreadPool {
     /// Create a new ThreadPool
@@ -36,31 +37,32 @@ impl ThreadPool {
     where
         F: FnOnce() + Send + 'static,
     {
+        let job = Box::new(f);
+        self.sender
+            .send(job)
+            .expect("Should send as long as there is an active receiving thread.");
     }
 }
 
-struct Job;
-
 struct Worker {
     id: usize,
-    thread: Option<thread::JoinHandle<()>>,
+    thread: thread::JoinHandle<()>,
 }
 
 impl Worker {
     pub fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
-        let builder = thread::Builder::new();
+        let thread = thread::spawn(move || loop {
+            let job = receiver
+                .lock()
+                .expect("Should have acquired a lock on Mutex 'receiver'")
+                .recv()
+                .expect("Should have received a job from 'sender' thread");
 
-        let thread = match builder.spawn(|| {}) {
-            Ok(thread) => thread,
-            Err(error) => {
-                eprintln!("Failed to spawn thread: {:?}", error);
-                return Worker { id, thread: None };
-            }
-        };
+            println!("Worker {id} got a job; executing.");
 
-        Worker {
-            id,
-            thread: Some(thread),
-        }
+            job();
+        });
+
+        Worker { id, thread }
     }
 }
