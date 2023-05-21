@@ -13,12 +13,14 @@ fn main() {
     let pool = ThreadPool::new(4);
 
     // one stream represents one connection
-    for stream in listener.incoming() {
+    for stream in listener.incoming().take(5) {
         let stream = stream.unwrap();
         pool.execute(|| {
             handle_connection(stream);
         });
     }
+
+    println!("Shutting down main program.");
 }
 
 fn handle_connection(mut stream: TcpStream) {
@@ -40,4 +42,5 @@ fn handle_connection(mut stream: TcpStream) {
     let response = format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}");
 
     stream.write_all(response.as_bytes()).unwrap();
+    stream.flush().unwrap();
 }
