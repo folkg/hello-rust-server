@@ -27,6 +27,7 @@ impl ThreadPool {
 
         let mut workers = Vec::with_capacity(size);
         for id in 0..size {
+            println!("creating worker {id}");
             workers.push(Worker::new(id, Arc::clone(&receiver)))
         }
 
@@ -71,11 +72,12 @@ struct Worker {
 impl Worker {
     pub fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
         let thread = thread::spawn(move || loop {
-            match receiver
+            let message = receiver
                 .lock()
                 .expect("Should have acquired a lock on Mutex 'receiver' unless it was poisoned.")
-                .recv()
-            {
+                .recv();
+
+            match message {
                 Ok(job) => {
                     println!("Worker {id} got a job; executing.");
                     job();
